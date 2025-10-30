@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { useAuth } from '@/lib/auth';
+import { useNeonAuth } from '@/hooks/use-neon-auth';
 import { Button } from '@/components/ui/button';
 import { LogOut, BookPlus, Library } from 'lucide-react';
 import BookManagement from './BookManagement';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export default function AdminDashboard() {
-  const { signOut, user } = useAuth();
+  const { signOut, user } = useNeonAuth();
 
   return (
     <div className="min-h-screen bg-muted/30">

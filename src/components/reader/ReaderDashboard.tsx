@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
-import { supabase } from '@/integrations/supabase/client';
+import { useNeonAuth } from '@/hooks/use-neon-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { LogOut, Library, Search, BookOpen } from 'lucide-react';
@@ -8,6 +7,8 @@ import { useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import BookCard from './BookCard';
 import PDFViewer from './PDFViewer';
+
+const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 interface Book {
   id: string;
@@ -21,7 +22,7 @@ interface Book {
 }
 
 export default function ReaderDashboard() {
-  const { signOut } = useAuth();
+  const { signOut } = useNeonAuth();
   const [searchParams] = useSearchParams();
   const [books, setBooks] = useState<Book[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,13 +41,14 @@ export default function ReaderDashboard() {
   }, [searchParams]);
 
   const fetchBooks = async () => {
-    const { data, error } = await supabase
-      .from('books')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (!error && data) {
-      setBooks(data);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/books`);
+      if (response.ok) {
+        const data = await response.json();
+        setBooks(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch books:', error);
     }
   };
 

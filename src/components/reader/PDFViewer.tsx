@@ -1,5 +1,7 @@
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Download } from 'lucide-react';
+import { useState } from 'react';
+import { toast } from 'sonner';
 
 interface Book {
   id: string;
@@ -14,6 +16,13 @@ interface PDFViewerProps {
 }
 
 export default function PDFViewer({ book, onClose }: PDFViewerProps) {
+  const [showPaymentMessage, setShowPaymentMessage] = useState(false);
+
+  const handleDownloadClick = () => {
+    setShowPaymentMessage(true);
+    toast.error('Purchase required to download this book');
+  };
+
   return (
     <div className="min-h-screen flex flex-col bg-background">
       {/* Header */}
@@ -28,6 +37,10 @@ export default function PDFViewer({ book, onClose }: PDFViewerProps) {
               <h1 className="font-bold text-lg line-clamp-1">{book.title}</h1>
               <p className="text-sm text-muted-foreground">{book.author}</p>
             </div>
+            <Button onClick={handleDownloadClick} variant="outline" size="sm">
+              <Download className="w-4 h-4 mr-2" />
+              Download PDF
+            </Button>
           </div>
         </div>
       </header>
@@ -36,15 +49,22 @@ export default function PDFViewer({ book, onClose }: PDFViewerProps) {
       <main className="flex-1 container mx-auto px-4 py-6">
         <div className="bg-card rounded-lg shadow-xl overflow-hidden h-[calc(100vh-180px)]">
           <iframe
-            src={`${book.pdf_url}#toolbar=0&navpanes=0&scrollbar=1`}
+            src={`https://docs.google.com/viewer?url=${encodeURIComponent(book.pdf_url)}&embedded=true&chrome=false&rm=minimal`}
             className="w-full h-full"
             title={book.title}
           />
         </div>
         <div className="mt-4 p-4 bg-muted/50 rounded-lg border border-border">
           <p className="text-sm text-muted-foreground text-center">
-            <strong>Note:</strong> PDF downloads are restricted. You can read this book online or purchase it to download.
+            <strong>Note:</strong> You can read this book online. To download the PDF, you need to purchase it.
           </p>
+          {showPaymentMessage && (
+            <div className="mt-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg">
+              <p className="text-sm text-destructive text-center">
+                <strong>Payment Required:</strong> You must purchase this book to download the PDF file.
+              </p>
+            </div>
+          )}
         </div>
       </main>
     </div>

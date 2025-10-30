@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
+import { useNeonAuth } from '@/hooks/use-neon-auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -23,7 +23,7 @@ const signInSchema = z.object({
 
 export default function Auth() {
   const [isLoading, setIsLoading] = useState(false);
-  const { signUp, signIn, user } = useAuth();
+  const { signUp, signIn, user } = useNeonAuth();
   const navigate = useNavigate();
 
   // Redirect if already logged in
@@ -48,10 +48,10 @@ export default function Auth() {
       const { error } = await signUp(data.email, data.password, data.fullName);
 
       if (error) {
-        if (error.message.includes('already registered')) {
+        if (error.includes('already registered')) {
           toast.error('This email is already registered. Please sign in instead.');
         } else {
-          toast.error(error.message);
+          toast.error(error);
         }
       } else {
         toast.success('Account created successfully! You can now sign in.');
@@ -83,10 +83,10 @@ export default function Auth() {
       const { error } = await signIn(data.email, data.password);
 
       if (error) {
-        if (error.message.includes('Invalid login credentials')) {
+        if (error.includes('Invalid login credentials')) {
           toast.error('Invalid email or password');
         } else {
-          toast.error(error.message);
+          toast.error(error);
         }
       } else {
         toast.success('Welcome back!');

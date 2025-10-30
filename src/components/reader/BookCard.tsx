@@ -1,11 +1,10 @@
-import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { useState, useEffect, useCallback } from 'react';
+import { useNeonAuth } from '@/hooks/use-neon-auth';
 import { Card, CardContent, CardFooter, CardHeader } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { BookOpen, Download, Check } from 'lucide-react';
 import { toast } from 'sonner';
-import { loadStripe } from '@stripe/stripe-js';
 
 interface Book {
   id: string;
@@ -23,76 +22,32 @@ interface BookCardProps {
   onReadClick: () => void;
 }
 
+const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
+
 export default function BookCard({ book, onReadClick }: BookCardProps) {
+  const { user } = useNeonAuth();
   const [isPurchased, setIsPurchased] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
 
-  useEffect(() => {
-    checkPurchaseStatus();
-  }, [book.id]);
-
-  const checkPurchaseStatus = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+  const checkPurchaseStatus = useCallback(async () => {
     if (!user) return;
 
-    const { data } = await supabase
-      .from('purchases')
-      .select('id')
-      .eq('user_id', user.id)
-      .eq('book_id', book.id)
-      .maybeSingle();
-
-    setIsPurchased(!!data);
-  };
-
-  const handleDownload = async () => {
-    if (book.price === 0) {
-      // Free book - direct download
-      window.open(book.pdf_url, '_blank');
-      return;
-    }
-
-    if (!isPurchased) {
-      toast.error('Please purchase this book first');
-      return;
-    }
-
-    // Purchased book - allow download
-    window.open(book.pdf_url, '_blank');
-  };
-
-  const handlePurchase = async () => {
-    setIsLoading(true);
-    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        toast.error('Please sign in to purchase');
-        return;
-      }
-
-      // Call Stripe checkout edge function
-      const { data, error } = await supabase.functions.invoke('create-checkout', {
-        body: {
-          bookId: book.id,
-          bookTitle: book.title,
-          price: book.price,
-          userId: user.id,
-        },
-      });
-
-      if (error) throw error;
-
-      // Redirect to Stripe checkout page
-      if (data.url) {
-        window.location.href = data.url;
-      }
+      // For now, we'll assume books are free or implement purchase checking later
+      // This would need an API endpoint to check purchases
+      setIsPurchased(false); // Placeholder
     } catch (error) {
-      console.error('Purchase error:', error);
-      toast.error('Failed to process purchase');
-    } finally {
-      setIsLoading(false);
+      console.error('Failed to check purchase status:', error);
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      checkPurchaseStatus();
+    }
+  }, [book.id, user, checkPurchaseStatus]);
+
+  const handleDownload = () => {
+    toast.error('Purchase required to download this book');
   };
 
   return (
@@ -138,16 +93,10 @@ export default function BookCard({ book, onReadClick }: BookCardProps) {
           <BookOpen className="w-4 h-4 mr-2" />
           Read
         </Button>
-        {book.price === 0 || isPurchased ? (
-          <Button onClick={handleDownload} variant="outline" className="flex-1">
-            <Download className="w-4 h-4 mr-2" />
-            Download
-          </Button>
-        ) : (
-          <Button onClick={handlePurchase} variant="default" className="flex-1" disabled={isLoading}>
-            {isLoading ? 'Processing...' : `Buy $${book.price.toFixed(2)}`}
-          </Button>
-        )}
+        <Button onClick={handleDownload} variant="outline" className="flex-1">
+          <Download className="w-4 h-4 mr-2" />
+          Download
+        </Button>
       </CardFooter>
     </Card>
   );

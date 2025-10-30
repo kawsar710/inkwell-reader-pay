@@ -1,10 +1,10 @@
-import { useAuth } from '@/lib/auth';
+import { useNeonAuth } from '@/hooks/use-neon-auth';
 import { Navigate } from 'react-router-dom';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import ReaderDashboard from '@/components/reader/ReaderDashboard';
 
 export default function Dashboard() {
-  const { user, userRole, loading } = useAuth();
+  const { user, loading } = useNeonAuth();
 
   if (loading) {
     return (
@@ -18,7 +18,7 @@ export default function Dashboard() {
     return <Navigate to="/auth" />;
   }
 
-  if (userRole === 'admin') {
+  if (user?.role === 'admin') {
     return <AdminDashboard />;
   }
 

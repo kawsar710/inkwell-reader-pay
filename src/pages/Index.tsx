@@ -1,12 +1,12 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/lib/auth';
+import { useNeonAuth } from '@/hooks/use-neon-auth';
 import { Button } from '@/components/ui/button';
 import { BookOpen, Library, Lock, Download, ArrowRight } from 'lucide-react';
 
 export default function Index() {
   const navigate = useNavigate();
-  const { user, loading } = useAuth();
+  const { user, loading } = useNeonAuth();
 
   useEffect(() => {
     if (!loading && user) {
@@ -37,7 +37,7 @@ export default function Index() {
             <h1 className="text-5xl md:text-6xl font-bold text-white mb-6 leading-tight">
               Your Digital Library
               <br />
-              <span className="gradient-accent bg-clip-text text-transparent">Awaits</span>
+              <span className="gradient-accent bg-clip-text text-transparent text-white rounded-xl pl-5 pr-5">Awaits</span>
             </h1>
             
             <p className="text-xl text-white/90 mb-8 max-w-2xl mx-auto">

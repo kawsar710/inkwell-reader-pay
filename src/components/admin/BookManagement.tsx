@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -9,6 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { toast } from 'sonner';
 import { Plus, Pencil, Trash2, Upload } from 'lucide-react';
 import { z } from 'zod';
+
+const API_BASE_URL = import.meta.env.DEV ? 'http://localhost:3001' : '';
 
 const bookSchema = z.object({
   title: z.string().trim().min(1, 'Title is required').max(200, 'Title must be less than 200 characters'),
@@ -31,29 +32,35 @@ interface Book {
 }
 
 export default function BookManagement() {
-  const [books, setBooks] = useState<Book[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [pdfFile, setPdfFile] = useState<File | null>(null);
+  const [books, setBooks] = useState<Book[]>([]);
+  const [booksLoading, setBooksLoading] = useState(true);
+
+  const fetchBooks = async () => {
+    try {
+      setBooksLoading(true);
+      const response = await fetch(`${API_BASE_URL}/api/books`);
+      if (response.ok) {
+        const data = await response.json();
+        setBooks(data);
+      } else {
+        throw new Error('Failed to fetch books');
+      }
+    } catch (error) {
+      console.error('Error fetching books:', error);
+      toast.error('Failed to load books');
+    } finally {
+      setBooksLoading(false);
+    }
+  };
 
   useEffect(() => {
     fetchBooks();
   }, []);
-
-  const fetchBooks = async () => {
-    const { data, error } = await supabase
-      .from('books')
-      .select('*')
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast.error('Failed to fetch books');
-    } else {
-      setBooks(data || []);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -76,34 +83,46 @@ export default function BookManagement() {
 
       // Upload cover image if provided
       if (coverFile) {
-        const coverPath = `${Date.now()}-${coverFile.name}`;
-        const { error: coverError } = await supabase.storage
-          .from('book-covers')
-          .upload(coverPath, coverFile);
+        try {
+          const formData = new FormData();
+          formData.append('file', coverFile);
 
-        if (coverError) throw coverError;
+          const response = await fetch(`${API_BASE_URL}/api/upload/cover`, {
+            method: 'POST',
+            body: formData,
+          });
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('book-covers')
-          .getPublicUrl(coverPath);
+          if (!response.ok) {
+            throw new Error('Failed to upload cover image');
+          }
 
-        coverUrl = publicUrl;
+          const result = await response.json();
+          coverUrl = result.url;
+        } catch (error) {
+          throw new Error('Failed to upload cover image');
+        }
       }
 
       // Upload PDF if provided
       if (pdfFile) {
-        const pdfPath = `${Date.now()}-${pdfFile.name}`;
-        const { error: pdfError } = await supabase.storage
-          .from('books')
-          .upload(pdfPath, pdfFile);
+        try {
+          const formData = new FormData();
+          formData.append('file', pdfFile);
 
-        if (pdfError) throw pdfError;
+          const response = await fetch(`${API_BASE_URL}/api/upload/pdf`, {
+            method: 'POST',
+            body: formData,
+          });
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('books')
-          .getPublicUrl(pdfPath);
+          if (!response.ok) {
+            throw new Error('Failed to upload PDF');
+          }
 
-        pdfUrl = publicUrl;
+          const result = await response.json();
+          pdfUrl = result.url;
+        } catch (error) {
+          throw new Error('Failed to upload PDF');
+        }
       }
 
       if (!pdfUrl && !editingBook) {
@@ -119,19 +138,48 @@ export default function BookManagement() {
       };
 
       if (editingBook) {
-        const { error } = await supabase
-          .from('books')
-          .update(bookData)
-          .eq('id', editingBook.id);
+        const response = await fetch(`${API_BASE_URL}/api/books/${editingBook.id}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: data.title,
+            author: data.author,
+            description: data.description,
+            price: data.price,
+            category: data.category,
+            coverImageUrl: coverUrl,
+            pdfUrl: pdfUrl,
+          }),
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error('Failed to update book');
+        }
+
         toast.success('Book updated successfully');
       } else {
-        const { error } = await supabase
-          .from('books')
-          .insert([bookData]);
+        const response = await fetch(`${API_BASE_URL}/api/books`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            title: data.title,
+            author: data.author,
+            description: data.description,
+            price: data.price,
+            category: data.category,
+            coverImageUrl: coverUrl,
+            pdfUrl: pdfUrl,
+          }),
+        });
 
-        if (error) throw error;
+        if (!response.ok) {
+          throw new Error('Failed to create book');
+        }
+
         toast.success('Book added successfully');
       }
 
@@ -139,7 +187,7 @@ export default function BookManagement() {
       setEditingBook(null);
       setCoverFile(null);
       setPdfFile(null);
-      fetchBooks();
+      fetchBooks(); // Refresh the book list
     } catch (error) {
       if (error instanceof z.ZodError) {
         toast.error(error.errors[0].message);
@@ -154,16 +202,19 @@ export default function BookManagement() {
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this book?')) return;
 
-    const { error } = await supabase
-      .from('books')
-      .delete()
-      .eq('id', id);
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/books/${id}`, {
+        method: 'DELETE',
+      });
 
-    if (error) {
-      toast.error('Failed to delete book');
-    } else {
+      if (!response.ok) {
+        throw new Error('Failed to delete book');
+      }
+
       toast.success('Book deleted successfully');
-      fetchBooks();
+      fetchBooks(); // Refresh the book list
+    } catch (error) {
+      toast.error('Failed to delete book');
     }
   };
 
@@ -171,14 +222,19 @@ export default function BookManagement() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">Books Library</h2>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={() => { setEditingBook(null); setCoverFile(null); setPdfFile(null); }}>
-              <Plus className="w-4 h-4 mr-2" />
-              Add Book
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={fetchBooks} disabled={booksLoading}>
+            <Upload className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => { setEditingBook(null); setCoverFile(null); setPdfFile(null); }}>
+                <Plus className="w-4 h-4 mr-2" />
+                Add Book
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editingBook ? 'Edit Book' : 'Add New Book'}</DialogTitle>
             </DialogHeader>
@@ -221,7 +277,7 @@ export default function BookManagement() {
                     name="price"
                     type="number"
                     step="0.01"
-                    defaultValue={editingBook?.price || 0}
+                    defaultValue={editingBook?.price ? Number(editingBook.price) : 0}
                     required
                     disabled={isLoading}
                   />
@@ -268,10 +324,17 @@ export default function BookManagement() {
             </form>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
+      {booksLoading && (
+        <div className="flex justify-center items-center py-12">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      )}
+
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        {books.map((book) => (
+        {(books || []).map((book) => (
           <Card key={book.id} className="shadow-lg hover:shadow-xl transition-shadow">
             <CardHeader>
               {book.cover_image_url && (
@@ -287,7 +350,7 @@ export default function BookManagement() {
             <CardContent>
               <p className="text-sm text-muted-foreground line-clamp-3 mb-4">{book.description}</p>
               <div className="flex items-center justify-between mb-4">
-                <span className="text-lg font-bold text-accent">${book.price.toFixed(2)}</span>
+                <span className="text-lg font-bold text-accent">${Number(book.price).toFixed(2)}</span>
                 {book.category && (
                   <span className="text-xs bg-muted px-2 py-1 rounded">{book.category}</span>
                 )}
@@ -315,7 +378,7 @@ export default function BookManagement() {
         ))}
       </div>
 
-      {books.length === 0 && (
+      {(books || []).length === 0 && (
         <Card className="p-12">
           <div className="text-center">
             <Upload className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
